@@ -1,10 +1,39 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
-function Branch(parent, position, direction) {
+function Branch(parent, position, direction, ctx) {
+  this.ctx = ctx;
   this.parent = parent;
   this.position = position;
   this.direction = direction;
+  this.originalDir = direction;
+  this.count = 0;
+  this.length = 10;
+
+  this.next = function () {
+    var nextDir = { x: this.direction.x * this.length,
+      y: this.direction.y * this.length };
+    var nextPos = { x: this.position.x + nextDir.x,
+      y: this.position.y + nextDir.y };
+    var nextBranch = new Branch(this, nextPos, this.direction, this.ctx);
+    return nextBranch;
+  };
+
+  this.reset = function () {
+    this.direction = this.originalDir;
+    this.count = 0;
+  };
+
+  this.show = function () {
+    if (this.parent != null) {
+      this.ctx.strokeStyle = "white";
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.position.x, this.position.y);
+      this.ctx.lineTo(this.parent.position.x, this.parent.position.y);
+      this.ctx.closePath();
+      this.ctx.stroke();
+    };
+  };
 };
 
 module.exports = Branch;
@@ -12,266 +41,155 @@ module.exports = Branch;
 },{}],2:[function(require,module,exports){
 'use strict';
 
-var Victor = require('victor');
 var Tree = require('./tree.js');
 
 var cvs = document.querySelector('canvas');
 var ctx = cvs.getContext('2d');
 
-function resize() {
-  cvs.width = cvs.clientWidth;
-  cvs.height = cvs.clientHeight;
+cvs.width = cvs.clientWidth;
+cvs.height = cvs.clientHeight;
+
+var tree = void 0;
+var maxDist = 100;
+var minDist = 10;
+
+var setup = function setup() {
+  tree = new Tree(cvs, ctx, minDist, maxDist);
+  draw();
 };
-
-window.onresize = resize;
-resize();
-
-// configurables
-var maxLeaves = 100;
-var minDist = 0.01;
-var maxDist = 0.1;
-
-var Colony = new Tree(new Victor(cvs.width * 0.5, cvs.height * 0.75), new Victor(0, -1), minDist, maxDist, cvs, ctx, maxLeaves);
 
 var draw = function draw() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, cvs.width, cvs.height);
-  Colony.displayLeaves();
-  Colony.branchLoop();
-  Colony.drawBranches();
-};
-
-var setup = function setup() {
-  Colony.createLeaves();
-  draw();
+  tree.show();
+  tree.grow();
+  requestAnimationFrame(draw);
 };
 
 setup();
 
-},{"./tree.js":4,"victor":5}],3:[function(require,module,exports){
+},{"./tree.js":4}],3:[function(require,module,exports){
 "use strict";
 
-var Victor = require('victor');
-
-var Leaf = function Leaf(cvs, ctx, radius) {
-  this.position = new Victor(Math.random() * cvs.width, Math.random() * cvs.height);
+var Leaf = function Leaf(cvs, ctx) {
+  this.position = { x: Math.random() * cvs.width,
+    y: Math.random() * cvs.height };
   this.status = false;
-  // TODO remove code below after display not needed
-  this.radius = radius;
-  this.display = function () {
-    ctx.beginPath();
-    if (status) {
-      ctx.fillStyle = "red";
-    } else {
-      ctx.fillStyle = "white";
-    }
-    ctx.arc(this.position.x, this.position.y, this.radius, 0, 2 * Math.PI, false);
-    ctx.closePath();
-    ctx.fill();
+  this.ctx = ctx;
+
+  this.show = function () {
+    this.ctx.beginPath();
+    this.ctx.fillStyle = "white";
+    this.ctx.arc(this.position.x, this.position.y, 2, 0, Math.PI * 2);
+    this.ctx.fill();
   };
 };
 
 module.exports = Leaf;
 
-},{"victor":5}],4:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 'use strict';
 
 var Victor = require('victor');
 var Leaf = require('./leaf.js');
 var Branch = require('./branch.js');
 
-var Tree = function Tree(startPosition, startDirection, minRatio, maxRatio, cvs, ctx, leafCount) {
+var Tree = function Tree(cvs, ctx, min, max) {
   this.cvs = cvs;
   this.ctx = ctx;
-  this.maxLeaves = leafCount;
+
+  this.min = min;
+  this.max = max;
+
   this.leaves = [];
   this.branches = [];
-  this.root = new Branch(new Victor(this.cvs.width / 2, this.cvs.height), startPosition, startDirection);
+
+  for (var i = 0; i < 1000; i++) {
+    this.leaves.push(new Leaf(this.cvs, this.ctx));
+  };
+
+  this.position = { x: this.cvs.width * 0.5, y: this.cvs.height };
+  this.direction = { x: 0, y: -1 };
+  this.root = new Branch(null, this.position, this.direction, this.ctx);
   this.branches.push(this.root);
-  this.minRatio = minRatio;
-  this.maxRatio = maxRatio;
-  this.dimension = dim(cvs);
+  this.current = this.root;
+  this.found = false;
 
-  this.createLeaves = function () {
-    for (var i = 0; i < this.maxLeaves; i++) {
-      this.leaves.push(new Leaf(this.cvs, this.ctx, 10));
+  while (!this.found) {
+    for (var _i = 0; _i < this.leaves.length; _i++) {
+      var d = new Victor(this.current.position.x, this.current.position.y).distance(new Victor(this.leaves[_i].position.x, this.leaves[_i].position.y));
+      if (d < max) {
+        this.found = true;
+      }
+
+      if (!this.found) {
+        var branch = this.current.next();
+        this.current = branch;
+        this.branches.push(this.current);
+      };
     };
   };
 
-  this.branchLoop = function () {
-    var minDist = this.dimension * this.minRatio;
-    var maxDist = this.dimension * this.maxRatio;
+  this.grow = function () {
+    for (var _i2 = 0; _i2 < this.leaves.length; _i2++) {
+      var leaf = this.leaves[_i2];
+      var closestBranch = null;
+      var record = 100000;
 
-    for (var i = 0; i < this.branches.length; i++) {
-      var c = this.branches[i];
-      var leafList = [];
-
-      for (var o = 0; o < this.leaves.length; o++) {
-        var d = c.position.distance(this.leaves[o].position);
-        if (d <= maxDist && d >= minDist) {
-          leafList.push(o);
+      for (var o = 0; o < this.branches.length; o++) {
+        var _branch = this.branches[o];
+        var _d = new Victor(leaf.position.x, leaf.position.y).distance(new Victor(_branch.position.x, _branch.position.y));
+        if (_d < this.min) {
+          leaf.reached = true;
+          closestBranch = null;
+          break;
+        } else if (_d > this.max) {} else if (closestBranch === null || _d < record) {
+          closestBranch = _branch;
+          record = _d;
         };
       };
 
-      if (leafList.length === 0) {
-        continue;
-      };
-
-      var closest = 0;
-      var closestDist = maxDist;
-      var newForce = new Victor(c.position.x, c.position.y);
-      for (var p = 0; p < leafList.length; p++) {
-        this.ctx.beginPath();
-        this.ctx.strokeStyle = "yellow";
-        this.ctx.moveTo(this.leaves[leafList[p]].position.x, this.leaves[leafList[p]].position.y);
-        this.ctx.lineTo(this.branches[i].position.x, this.branches[i].position.y);
-        this.ctx.stroke();
-
-        var _d = new Victor(c.position.x, c.position.y).distance(this.leaves[leafList[p]].position);
-        var newDir = new Victor(this.leaves[leafList[p]].position.x, this.leaves[leafList[p]].position.y).subtract(c.position).normalize();
-        var newMag = (_d - minDist) / (maxDist - minDist);
-        newDir = new Victor(newDir.x * newMag, newDir.y * newMag);
-        newForce = new Victor(newForce.x + newDir.x, newForce.y + newForce.y);
-
-        if (_d < closestDist) {
-          closest = p;
-          closestDist = _d;
+      if (closestBranch != null) {
+        var newDir = new Victor(leaf.position.x - closestBranch.position.x, leaf.position.y - closestBranch.position.y).normalize();
+        closestBranch.direction = {
+          x: closestBranch.direction.x + newDir.x,
+          y: closestBranch.direction.y + newDir.y
         };
+        closestBranch.count++;
       };
+    };
 
-      this.leaves[leafList[closest]].status = true;
-      var normalized = newForce.normalize();
-      newForce = new Victor(normalized.x * maxDist, normalized.y * maxDist);
+    for (var _i3 = this.leaves.length - 1; _i3 >= 0; _i3--) {
+      if (this.leaves[_i3].reached) {
+        this.leaves.splice(_i3, 1);
+      };
+    };
 
-      /*
-      this.ctx.beginPath();
-      this.ctx.strokeStyle = "red";
-      this.ctx.moveTo( c.position.x, c.position.y );
-      this.ctx.lineTo( c.position.x + newForce.x, c.position.y + newForce.y );
-      this.ctx.stroke();
-      */
-      var newPos = new Victor(c.position.x + newForce.x, c.position.y + newForce.y);
-      c.position.add(newForce);
-      var newBranch = new Branch(c.position, newPos, normalized);
-      this.branches.push(newBranch);
+    for (var _i4 = this.branches.length - 1; _i4 >= 0; _i4--) {
+      var _branch2 = this.branches[_i4];
+      if (_branch2.count > 0) {
+        _branch2.direction = {
+          x: _branch2.direction.x / (_branch2.count + 1),
+          y: _branch2.direction.y / (_branch2.count + 1)
+        };
+        this.branches.push(_branch2.next());
+      };
+      _branch2.reset();
     };
   };
 
-  this.drawBranches = function () {
-    for (var i = 0; i < this.branches.length; i++) {
-      var b = this.branches[i];
-      console.log(b);
-      this.ctx.beginPath();
-      this.ctx.strokeStyle = "white";
-      this.ctx.moveTo(b.position.x, b.position.y);
-      this.ctx.lineTo(b.parent.x, b.parent.y);
-      this.ctx.stroke();
+  this.show = function () {
+    for (var _i5 = 0; _i5 < this.leaves.length; _i5++) {
+      this.leaves[_i5].show();
     };
-  };
 
-  this.displayLeaves = function () {
-    for (var i = 0; i < this.maxLeaves; i++) {
-      this.leaves[i].display();
+    for (var _i6 = 0; _i6 < this.branches.length; _i6++) {
+      this.branches[_i6].show();
     };
   };
 };
 
 module.exports = Tree;
-
-var dim = function dim(ctx) {
-  if (ctx.width > ctx.height) {
-    return ctx.width;
-  } else {
-    return ctx.height;
-  };
-};
-
-/*
-const Tree = function( ctx, max, bounds, minRatio, maxRatio ){
-  this.ctx = ctx;
-  this.max = max;
-  this.bounds = bounds;
-  this.minRatio = minRatio;
-  this.maxRatio = maxRatio;
-  this.leaves = [];
-  this.branches = [];
-  this.dimension = dim( ctx );
-
-  this.createLeaves = function(){
-    for( let i = 0; i < this.max; i++ ){
-      this.leaves.push( new Leaf( this.ctx, 10, this.bounds ) );
-    };
-  };
-
-  this.growTree = function(){
-    let startPosition = { x: this.ctx.width / 2, y: this.ctx.height / 2 };
-    let startDirection = { x: 0, y: -1 };
-    let root = new Branch( null, startPosition, startDirection );
-
-    this.branches.push( root );
-
-    let found = false;
-
-    while( !found ){
-      for( let i = 0; i < leaves.length; i++ ){
-        let found = false;
-        let dist = Math.dist( root.position, leaves[ i ].position );
-        if ( dist < 100 ){
-          found = true;
-        };
-
-        if( !found ){
-          let branch = current.next();
-          current
-        };
-      };
-    };
-  };
-
-  this.display = function(){
-    for( let i = 0; i < this.max; i++ ){
-      this.leaves[ i ].display();
-    };
-  };
-};
-
-Math.dist = function( va, vb ){
-  return Math.sqrt( Math.pow( va.x - vb.x, 2 ) + Math.pow( va.y - vb.y, 2 ) );
-};
-
-this.nextBranch = function( index, list ){
-  const c = this.branches[ index ];
-  let newForce = this.branches[ index ].direction;
-  let minDist = this.dimension;
-  let closest = 0;
-
-  if( list.length === 0 ){
-    return;
-  }
-
-  for( let i = list.length - 1; i >= 0; i-- ){
-    let d = c.position.distance( this.leaves[ list[ i ] ].position );
-    let newDir = this.leaves[ list[ i ] ].position.subtract( c.position ).normalize();
-    let newMag = ( this.maxDist - this.minDist )( d - this.minDist ) / ( this.maxDist - this.minDist );
-    let force = newDir.multiply( new Victor( newMag, newMag ) );
-    newForce = newForce.add( force );
-
-    if( d < minDist ){
-      minDist = d;
-      closest = i;
-    };
-  };
-
-  this.leaves.splice( closest, 1 );
-
-  let normalized = newForce.normalize();
-  // newForce = normalized * someValue
-  const newBranch = new Branch( c.position, c.position.add( newForce ), normalized );
-  this.branches.push( newBranch );
-  nextBranch( index++, list );
-};
-
-*/
 
 },{"./branch.js":1,"./leaf.js":3,"victor":5}],5:[function(require,module,exports){
 exports = module.exports = Victor;
