@@ -2,7 +2,9 @@ const Victor = require( 'victor' );
 const Leaf = require( './leaf.js' );
 const Branch = require( './branch.js' );
 
-const Tree = function( cvs, ctx, min, max ){
+const Tree = function( num, cvs, ctx, min, max, split, perlin){
+  this.num = num;
+
   this.cvs = cvs;
   this.ctx = ctx;
 
@@ -12,13 +14,16 @@ const Tree = function( cvs, ctx, min, max ){
   this.leaves = [];
   this.branches = [];
 
-  for( let i = 0; i < 1000; i++ ){
+  this.split = split;
+  this.perlin = perlin;
+
+  for( let i = 0; i < this.num; i++ ){
     this.leaves.push( new Leaf( this.cvs, this.ctx ));
   };
 
   this.position = { x: this.cvs.width * 0.5, y: this.cvs.height };
   this.direction = { x: 0, y: -1 };
-  this.root = new Branch( null, this.position, this.direction, this.ctx );
+  this.root = new Branch( null, this.position, this.direction, this.cvs, this.ctx, 1, this.split, this.perlin );
   this.branches.push( this.root );
   this.current = this.root;
   this.found = false;
@@ -85,6 +90,13 @@ const Tree = function( cvs, ctx, min, max ){
         this.branches.push( branch.next() );
       };
       branch.reset();
+    };
+  };
+
+  this.movewind = function( amt ){
+    for( let i = 0; i < this.branches.length; i++ ){
+      let total = this.branches[ i ].num / this.branches.length * amt;
+      this.branches[ i ].wind( total );
     };
   };
 

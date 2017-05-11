@@ -1,21 +1,28 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
-function Branch(parent, position, direction, ctx) {
+var Victor = require('victor');
+
+function Branch(parent, position, direction, cvs, ctx, num, split, perlin) {
+  this.cvs = cvs;
   this.ctx = ctx;
   this.parent = parent;
   this.position = position;
+  this.drawPos = position;
   this.direction = direction;
   this.originalDir = direction;
   this.count = 0;
   this.length = 10;
+  this.num = num;
+  this.split = split;
+  this.perlin = perlin;
 
   this.next = function () {
     var nextDir = { x: this.direction.x * this.length,
       y: this.direction.y * this.length };
     var nextPos = { x: this.position.x + nextDir.x,
       y: this.position.y + nextDir.y };
-    var nextBranch = new Branch(this, nextPos, this.direction, this.ctx);
+    var nextBranch = new Branch(this, nextPos, this.direction, this.cvs, this.ctx, this.num + 1, this.split, this.perlin);
     return nextBranch;
   };
 
@@ -24,12 +31,36 @@ function Branch(parent, position, direction, ctx) {
     this.count = 0;
   };
 
+  this.wind = function (amt) {
+    this.drawPos = { x: this.position.x, y: this.position.y };
+    var xsplit = Math.abs(Math.floor(this.position.x / this.cvs.width * (this.split - 1)));
+    var ysplit = Math.abs(Math.floor(this.position.y / this.cvs.height * (this.split - 1)));
+    this.gridslot = { x: xsplit, y: ysplit };
+
+    this.pushDir = new Victor(this.perlin[this.gridslot.x][this.gridslot.y].x, this.perlin[this.gridslot.x][this.gridslot.y].y).normalize();
+
+    var xtest = this.position.x + this.pushDir.x * this.length * amt;
+    var ytest = this.position.y + this.pushDir.y * this.length * amt;
+
+    if (xtest < 0 || xtest > this.cvs.width || ytest < 0 || ytest > this.cvs.height) {
+      this.drawPos = {
+        x: this.position.x,
+        y: this.position.y
+      };
+    };
+
+    this.drawPos = {
+      x: this.position.x + this.pushDir.x * this.length * amt,
+      y: this.position.y + this.pushDir.y * this.length * amt
+    };
+  };
+
   this.show = function () {
     if (this.parent != null) {
       this.ctx.strokeStyle = "white";
       this.ctx.beginPath();
-      this.ctx.moveTo(this.position.x, this.position.y);
-      this.ctx.lineTo(this.parent.position.x, this.parent.position.y);
+      this.ctx.moveTo(this.drawPos.x, this.drawPos.y);
+      this.ctx.lineTo(this.parent.drawPos.x, this.parent.drawPos.y);
       this.ctx.closePath();
       this.ctx.stroke();
     };
@@ -38,10 +69,11 @@ function Branch(parent, position, direction, ctx) {
 
 module.exports = Branch;
 
-},{}],2:[function(require,module,exports){
+},{"victor":6}],2:[function(require,module,exports){
 'use strict';
 
 var Tree = require('./tree.js');
+var perlin = require('perlin-noise');
 
 var cvs = document.querySelector('canvas');
 var ctx = cvs.getContext('2d');
@@ -50,17 +82,61 @@ cvs.width = cvs.clientWidth;
 cvs.height = cvs.clientHeight;
 
 var tree = void 0;
+var amount = 0;
 var maxDist = 100;
 var minDist = 10;
+var numLeaf = 1000;
+var noiseSplit = 16;
+
+var xvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
+var yvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
+var perlinArray = [];
+
+for (var x = 0; x < noiseSplit; x++) {
+  perlinArray[x] = [];
+  for (var y = 0; y < noiseSplit; y++) {
+    perlinArray[x][y] = { x: (xvalues[x] - 0.5) * 2, y: (yvalues[y] - 0.5) * 2 };
+  }
+}
+
+document.addEventListener("keydown", function (e) {
+  console.log(e.keycode);
+  if (e.keyCode === 32) {
+    setup();
+  }
+});
+
+cvs.addEventListener("click", function (e) {
+  if (amount === 0) {
+    amount = 50;
+  } else {
+    amount = 0;
+  }
+});
+
+var actx = void 0,
+    audio = void 0,
+    audioSrc = void 0,
+    analyser = void 0,
+    frequencyData = void 0;
 
 var setup = function setup() {
-  tree = new Tree(cvs, ctx, minDist, maxDist);
+  actx = new AudioContext();
+  audio = document.getElementById('audio');
+  audioSrc = actx.createMediaElementSource(audio);
+  analyser = actx.createAnalyser();
+  audioSrc.connect(analyser);
+  frequencyData = new Uint8Array(analyser.frequencyBinCount);
+  audio.play();
+  tree = new Tree(numLeaf, cvs, ctx, minDist, maxDist, noiseSplit, perlinArray);
   draw();
 };
 
 var draw = function draw() {
+  console.log(analyser.getByteFrequencyData(frequencyData));
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, cvs.width, cvs.height);
+  tree.movewind(amount);
   tree.show();
   tree.grow();
   requestAnimationFrame(draw);
@@ -68,7 +144,7 @@ var draw = function draw() {
 
 setup();
 
-},{"./tree.js":4}],3:[function(require,module,exports){
+},{"./tree.js":4,"perlin-noise":5}],3:[function(require,module,exports){
 "use strict";
 
 var Leaf = function Leaf(cvs, ctx) {
@@ -94,7 +170,9 @@ var Victor = require('victor');
 var Leaf = require('./leaf.js');
 var Branch = require('./branch.js');
 
-var Tree = function Tree(cvs, ctx, min, max) {
+var Tree = function Tree(num, cvs, ctx, min, max, split, perlin) {
+  this.num = num;
+
   this.cvs = cvs;
   this.ctx = ctx;
 
@@ -104,13 +182,16 @@ var Tree = function Tree(cvs, ctx, min, max) {
   this.leaves = [];
   this.branches = [];
 
-  for (var i = 0; i < 1000; i++) {
+  this.split = split;
+  this.perlin = perlin;
+
+  for (var i = 0; i < this.num; i++) {
     this.leaves.push(new Leaf(this.cvs, this.ctx));
   };
 
   this.position = { x: this.cvs.width * 0.5, y: this.cvs.height };
   this.direction = { x: 0, y: -1 };
-  this.root = new Branch(null, this.position, this.direction, this.ctx);
+  this.root = new Branch(null, this.position, this.direction, this.cvs, this.ctx, 1, this.split, this.perlin);
   this.branches.push(this.root);
   this.current = this.root;
   this.found = false;
@@ -178,20 +259,99 @@ var Tree = function Tree(cvs, ctx, min, max) {
     };
   };
 
+  this.movewind = function (amt) {
+    for (var _i5 = 0; _i5 < this.branches.length; _i5++) {
+      var total = this.branches[_i5].num / this.branches.length * amt;
+      this.branches[_i5].wind(total);
+    };
+  };
+
   this.show = function () {
-    for (var _i5 = 0; _i5 < this.leaves.length; _i5++) {
-      this.leaves[_i5].show();
+    for (var _i6 = 0; _i6 < this.leaves.length; _i6++) {
+      this.leaves[_i6].show();
     };
 
-    for (var _i6 = 0; _i6 < this.branches.length; _i6++) {
-      this.branches[_i6].show();
+    for (var _i7 = 0; _i7 < this.branches.length; _i7++) {
+      this.branches[_i7].show();
     };
   };
 };
 
 module.exports = Tree;
 
-},{"./branch.js":1,"./leaf.js":3,"victor":5}],5:[function(require,module,exports){
+},{"./branch.js":1,"./leaf.js":3,"victor":6}],5:[function(require,module,exports){
+exports.generatePerlinNoise = generatePerlinNoise;
+exports.generateWhiteNoise = generateWhiteNoise;
+
+function generatePerlinNoise(width, height, options) {
+  options = options || {};
+  var octaveCount = options.octaveCount || 4;
+  var amplitude = options.amplitude || 0.1;
+  var persistence = options.persistence || 0.2;
+  var whiteNoise = generateWhiteNoise(width, height);
+
+  var smoothNoiseList = new Array(octaveCount);
+  var i;
+  for (i = 0; i < octaveCount; ++i) {
+    smoothNoiseList[i] = generateSmoothNoise(i);
+  }
+  var perlinNoise = new Array(width * height);
+  var totalAmplitude = 0;
+  // blend noise together
+  for (i = octaveCount - 1; i >= 0; --i) {
+    amplitude *= persistence;
+    totalAmplitude += amplitude;
+
+    for (var j = 0; j < perlinNoise.length; ++j) {
+      perlinNoise[j] = perlinNoise[j] || 0;
+      perlinNoise[j] += smoothNoiseList[i][j] * amplitude;
+    }
+  }
+  // normalization
+  for (i = 0; i < perlinNoise.length; ++i) {
+      perlinNoise[i] /= totalAmplitude;
+  }
+
+  return perlinNoise;
+
+  function generateSmoothNoise(octave) {
+    var noise = new Array(width * height);
+    var samplePeriod = Math.pow(2, octave);
+    var sampleFrequency = 1 / samplePeriod;
+    var noiseIndex = 0;
+    for (var y = 0; y < height; ++y) {
+      var sampleY0 = Math.floor(y / samplePeriod) * samplePeriod;
+      var sampleY1 = (sampleY0 + samplePeriod) % height;
+      var vertBlend = (y - sampleY0) * sampleFrequency;
+      for (var x = 0; x < width; ++x) {
+        var sampleX0 = Math.floor(x / samplePeriod) * samplePeriod;
+        var sampleX1 = (sampleX0 + samplePeriod) % width;
+        var horizBlend = (x - sampleX0) * sampleFrequency;
+
+        // blend top two corners
+        var top = interpolate(whiteNoise[sampleY0 * width + sampleX0], whiteNoise[sampleY1 * width + sampleX0], vertBlend);
+        // blend bottom two corners
+        var bottom = interpolate(whiteNoise[sampleY0 * width + sampleX1], whiteNoise[sampleY1 * width + sampleX1], vertBlend);
+        // final blend
+        noise[noiseIndex] = interpolate(top, bottom, horizBlend);
+        noiseIndex += 1;
+      }
+    }
+    return noise;
+  }
+}
+function generateWhiteNoise(width, height) {
+  var noise = new Array(width * height);
+  for (var i = 0; i < noise.length; ++i) {
+    noise[i] = Math.random();
+  }
+  return noise;
+}
+function interpolate(x0, x1, alpha) {
+  return x0 * (1 - alpha) + alpha * x1;
+}
+
+},{}],6:[function(require,module,exports){
 exports = module.exports = Victor;
 
 /**
