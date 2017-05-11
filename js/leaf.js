@@ -1,13 +1,19 @@
+const Victor = require( 'victor' );
 
-const Leaf = function( ctx, radius, bounds ){
-  this.position = {
-    x: Math.random() * bounds.x,
-    y: Math.random() * bounds.y };
+const Leaf = function( cvs, ctx, radius ){
+  this.position = new Victor(
+    Math.random() * cvs.width,
+    Math.random() * cvs.height );
+  this.status = false;
+  // TODO remove code below after display not needed
   this.radius = radius;
-
   this.display = function(){
     ctx.beginPath();
-    ctx.fillStyle = "white";
+    if( status ){
+      ctx.fillStyle = "red";
+    } else {
+      ctx.fillStyle = "white";
+    }
     ctx.arc(
       this.position.x,
       this.position.y,

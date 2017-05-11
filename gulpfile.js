@@ -4,7 +4,8 @@ var gulp = require( 'gulp' ),
     source = require( 'vinyl-source-stream' ),
     buffer = require( 'vinyl-buffer' ),
     babel = require( 'gulp-babel' ),
-    notify = require( 'gulp-notify' );
+    notify = require( 'gulp-notify' ),
+    watchify = require( 'watchify' );
 
 gulp.task( 'js', function(){
   browserify({
@@ -21,4 +22,10 @@ gulp.task( 'js', function(){
     }) )
 });
 
-gulp.task( 'default', ['js'] );
+gulp.task( 'watch', function(){
+  gulp.watch( './js/**.js', function(){
+    gulp.run( 'js' );
+  });
+});
+
+gulp.task( 'default', ['watch'] );

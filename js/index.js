@@ -1,3 +1,4 @@
+const Victor = require( 'victor' );
 const Tree = require( './tree.js' );
 
 const cvs = document.querySelector( 'canvas' );
@@ -11,16 +12,31 @@ function resize(){
 window.onresize = resize;
 resize();
 
-const Colony = new Tree( ctx, 100, { x: cvs.width, y: cvs.height } );
+// configurables
+const maxLeaves = 100;
+const minDist = 0.01;
+const maxDist = 0.1;
+
+const Colony = new Tree(
+  new Victor( cvs.width * 0.5, cvs.height * 0.75 ),
+  new Victor( 0, -1 ),
+  minDist,
+  maxDist,
+  cvs,
+  ctx,
+  maxLeaves );
 
 const draw = function(){
   ctx.fillStyle = "black";
   ctx.fillRect( 0, 0, cvs.width, cvs.height );
-  Colony.display();
+  Colony.displayLeaves();
+  Colony.branchLoop();
+  Colony.drawBranches();
+
 };
 
 const setup = function(){
-  Colony.create();
+  Colony.createLeaves();
   draw();
 };
 
