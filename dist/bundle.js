@@ -74,11 +74,85 @@ function Branch(parent, position, direction, cvs, ctx, num, split, perlin) {
 
 module.exports = Branch;
 
-},{"victor":6}],2:[function(require,module,exports){
+},{"victor":7}],2:[function(require,module,exports){
+"use strict";
+
+var Victor = require('victor');
+
+var Flow = function Flow(cvs, ctx, split, map) {
+  this.cvs = cvs;
+  this.ctx = ctx;
+  this.split = split;
+  this.map = map;
+  this.position = { x: Math.random() * this.cvs.width, y: Math.random() * this.cvs.height };
+
+  this.moveWind = function (amt) {
+    var xsplit = Math.abs(Math.floor(this.position.x / this.cvs.width * (this.split - 1)));
+    var ysplit = Math.abs(Math.floor(this.position.y / this.cvs.height * (this.split - 1)));
+    this.gridslot = { x: xsplit, y: ysplit };
+    this.pushDir = new Victor(this.map[this.gridslot.x][this.gridslot.y].x, this.map[this.gridslot.x][this.gridslot.y].y).normalize();
+
+    var xtest = this.position.x + this.pushDir.x * amt;
+    var ytest = this.position.y + this.pushDir.y * amt;
+
+    if (xtest < 0 || xtest > this.cvs.width || ytest < 0 || ytest > this.cvs.height) {
+      this.position = { x: Math.random() * this.cvs.width, y: Math.random() * this.cvs.height };
+      return;
+    };
+
+    this.position = { x: xtest, y: ytest };
+  };
+
+  this.color = { r: 0, g: 0, b: 0 };
+  this.color.r = gencolor();
+  this.color.g = gencolor();
+  this.color.b = gencolor();
+
+  this.show = function (amt) {
+    this.ctx.beginPath();
+    this.ctx.fillStyle = "rgba( " + this.color.r + "," + this.color.g + "," + this.color.b + "," + amt + ")";
+    this.ctx.arc(this.position.x, this.position.y, 5, 0, Math.PI * 2);
+    this.ctx.fill();
+  };
+};
+
+module.exports = Flow;
+
+function genpos(cvs) {
+  var width = cvs.width;
+  var height = cvs.height;
+
+  var sum = width * 2 + height * 2;
+  var pos = Math.random() * sum;
+  var npos = void 0;
+
+  if (pos < width) {
+    npos = { x: pos, y: 0 };
+  } else if (pos > width && pos < width + height) {
+    npos = { x: width, y: pos - width };
+  } else if (pos > width + height && pos < width * 2 + height) {
+    npos = { x: pos - (width + height), y: height };
+  } else {
+    npos = { x: 0, y: pos - (width * 2 + height) };
+  };
+
+  if (isNaN(npos.x) || isNaN(npos.y)) {
+    genpos(cvs);
+  };
+
+  return npos;
+};
+
+function gencolor() {
+  return Math.round(Math.random() * 255);
+};
+
+},{"victor":7}],3:[function(require,module,exports){
 'use strict';
 
 var Tree = require('./tree.js');
 var Leaf = require('./leaf.js');
+var Flow = require('./flow.js');
 var perlin = require('perlin-noise');
 
 var cvs = document.querySelector('canvas');
@@ -89,6 +163,7 @@ cvs.height = cvs.clientHeight;
 
 // configurables
 var numLeaf = 1000;
+var numFlows = 250;
 var maxDist = 100;
 var minDist = 10;
 var noiseSplit = 16;
@@ -96,6 +171,7 @@ var noiseSplit = 16;
 var average = 0;
 var trees = [];
 var leaves = [];
+var flows = [];
 var perlinArray = [];
 var xvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
 var yvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
@@ -170,8 +246,12 @@ var setup = function setup() {
     perlinArray[x] = [];
     for (var y = 0; y < noiseSplit; y++) {
       perlinArray[x][y] = { x: (xvalues[x] - 0.5) * 2, y: (yvalues[y] - 0.5) * 2 };
-    }
-  }
+    };
+  };
+
+  for (var _i = 0; _i < numFlows; _i++) {
+    flows.push(new Flow(cvs, ctx, noiseSplit, perlinArray));
+  };
 
   actx = new (window.AudioContext || window.webkitAudioContext)();
   setupAudioNodes();
@@ -196,11 +276,18 @@ var draw = function draw() {
   for (var i = 0; i < trees.length; i++) {
     trees[i].grow();
   };
-  for (var _i = 0; _i < trees.length; _i++) {
-    trees[_i].movewind((average - 50) * 10);
-  };
   for (var _i2 = 0; _i2 < trees.length; _i2++) {
-    trees[_i2].show();
+    trees[_i2].movewind((average - 50) * 10);
+  };
+  for (var _i3 = 0; _i3 < trees.length; _i3++) {
+    trees[_i3].show();
+  };
+
+  for (var _i4 = 0; _i4 < flows.length; _i4++) {
+    flows[_i4].moveWind(average / 100);
+  };
+  for (var _i5 = 0; _i5 < flows.length; _i5++) {
+    flows[_i5].show(average / 100);
   };
 
   requestAnimationFrame(draw);
@@ -216,7 +303,7 @@ document.addEventListener("keydown", function (e) {
 
 setup();
 
-},{"./leaf.js":3,"./tree.js":4,"perlin-noise":5}],3:[function(require,module,exports){
+},{"./flow.js":2,"./leaf.js":4,"./tree.js":5,"perlin-noise":6}],4:[function(require,module,exports){
 "use strict";
 
 var Leaf = function Leaf(cvs, ctx) {
@@ -235,7 +322,7 @@ var Leaf = function Leaf(cvs, ctx) {
 
 module.exports = Leaf;
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 'use strict';
 
 var Victor = require('victor');
@@ -350,7 +437,7 @@ var Tree = function Tree(start, dir, leaves, cvs, ctx, min, max, split, perlin) 
 
 module.exports = Tree;
 
-},{"./branch.js":1,"victor":6}],5:[function(require,module,exports){
+},{"./branch.js":1,"victor":7}],6:[function(require,module,exports){
 exports.generatePerlinNoise = generatePerlinNoise;
 exports.generateWhiteNoise = generateWhiteNoise;
 
@@ -422,7 +509,7 @@ function interpolate(x0, x1, alpha) {
   return x0 * (1 - alpha) + alpha * x1;
 }
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 exports = module.exports = Victor;
 
 /**
@@ -1748,4 +1835,4 @@ function degrees2radian (deg) {
 	return deg / degrees;
 }
 
-},{}]},{},[2]);
+},{}]},{},[3]);

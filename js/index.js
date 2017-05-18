@@ -11,6 +11,7 @@ cvs.height = cvs.clientHeight;
 
 // configurables
 const numLeaf = 1000;
+const numFlows = 250;
 const maxDist = 100;
 const minDist = 10;
 const noiseSplit = 16;
@@ -18,6 +19,7 @@ const noiseSplit = 16;
 let average = 0;
 let trees = [];
 let leaves = [];
+let flows = [];
 let perlinArray = [];
 let xvalues = perlin.generatePerlinNoise( noiseSplit, noiseSplit );
 let yvalues = perlin.generatePerlinNoise( noiseSplit, noiseSplit );
@@ -86,8 +88,12 @@ const setup = function(){
     perlinArray[ x ] = [];
     for( let y = 0; y < noiseSplit; y++ ){
       perlinArray[ x ][ y ] = { x: ( xvalues[ x ] - 0.5 ) * 2, y: ( yvalues[ y ] - 0.5 ) * 2 };
-    }
-  }
+    };
+  };
+
+  for( let i = 0; i < numFlows; i++ ){
+    flows.push( new Flow( cvs, ctx, noiseSplit, perlinArray ) );
+  };
 
   actx = new ( window.AudioContext || window.webkitAudioContext )();
   setupAudioNodes();
@@ -116,6 +122,13 @@ const draw = function(){
   };
   for( let i = 0; i < trees.length; i++ ){
     trees[ i ].show();
+  };
+
+  for( let i = 0; i < flows.length; i++ ){
+    flows[ i ].moveWind( average / 100 );
+  };
+  for( let i = 0; i < flows.length; i++ ){
+    flows[ i ].show( average / 100 );
   };
 
   requestAnimationFrame( draw );

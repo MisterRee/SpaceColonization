@@ -38,7 +38,7 @@ function Branch( parent, position, direction, cvs, ctx, num, split, perlin ){
                                this.perlin[ this.gridslot.x ][ this.gridslot.y ].y ).normalize();
 
     let xtest = this.position.x + this.pushDir.x * this.length * amt;
-    let ytest = this.position.y + this.pushDir.y * this.length * amt
+    let ytest = this.position.y + this.pushDir.y * this.length * amt;
 
     this.drawPos = {
       x: this.position.x + this.pushDir.x * this.length * amt,
