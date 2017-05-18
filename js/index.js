@@ -8,7 +8,7 @@ cvs.width = cvs.clientWidth;
 cvs.height = cvs.clientHeight;
 
 let tree;
-let amount = 0;
+let amount = 100;
 const maxDist = 100;
 const minDist = 10;
 const numLeaf = 1000;
@@ -34,31 +34,78 @@ document.addEventListener("keydown", function( e ){
 
 cvs.addEventListener("click", function( e ){
   if( amount === 0 ){
-    amount = 50;
+    amount = 100;
   } else {
     amount = 0;
   }
 });
 
-let actx, audio, audioSrc, analyser, frequencyData;
+let actx, req, analyser, jscriptNode, sourceNode, bufferLength, frequencyData;
+let average = 0;
 
 const setup = function(){
-  actx = new AudioContext();
-  audio = document.getElementById( 'audio' );
-  audioSrc = actx.createMediaElementSource( audio );
-  analyser = actx.createAnalyser();
-  audioSrc.connect( analyser );
-  frequencyData = new Uint8Array(analyser.frequencyBinCount);
-  audio.play();
+  actx = new ( window.AudioContext || window.webkitAudioContext )();
+  setupAudioNodes();
+  soundLoad();
   tree = new Tree( numLeaf, cvs, ctx, minDist, maxDist, noiseSplit, perlinArray );
   draw();
 };
 
+function setupAudioNodes(){
+  jscriptNode = actx.createScriptProcessor( 2048, 1, 1 );
+  jscriptNode.connect( actx.destination );
+
+  analyser = actx.createAnalyser();
+  analyser.smoothingTimeConstant = 0.3;
+  analyser.fftSize = 1024;
+
+  jscriptNode.onaudioprocess = function(){
+    let array = new Uint8Array( analyser.frequencyBinCount );
+    analyser.getByteFrequencyData( array );
+    average = getAverageVolume( array );
+  };
+
+  sourceNode = actx.createBufferSource();
+  sourceNode.connect( analyser );
+  analyser.connect( jscriptNode );
+  sourceNode.connect( actx.destination );
+};
+
+function soundLoad(){
+  req = new XMLHttpRequest();
+
+  req.open( 'GET', './wind.mp3' );
+  req.responseType = 'arraybuffer';
+
+  req.onload = function(){
+    actx.decodeAudioData( req.response, function( buffer ){
+      sourceNode.buffer = buffer;
+      sourceNode.start( 0 );
+    });
+  };
+
+  req.send();
+};
+
+function getAverageVolume( array ){
+  let values = 0;
+  let naverage;
+  let length = array.length;
+
+  for( let i = 0; i < length; i++ ){
+    values += array[ i ];
+  };
+
+  naverage = values / length;
+  return naverage;
+};
+
 const draw = function(){
-  console.log( analyser.getByteFrequencyData( frequencyData ) );
   ctx.fillStyle = "black";
   ctx.fillRect( 0, 0, cvs.width, cvs.height );
-  tree.movewind( amount );
+
+  console.log(average );
+  tree.movewind( average - 50 );
   tree.show();
   tree.grow();
   requestAnimationFrame( draw );
