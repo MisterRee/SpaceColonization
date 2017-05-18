@@ -42,16 +42,21 @@ function Branch(parent, position, direction, cvs, ctx, num, split, perlin) {
     var xtest = this.position.x + this.pushDir.x * this.length * amt;
     var ytest = this.position.y + this.pushDir.y * this.length * amt;
 
-    if (xtest < 0 || xtest > this.cvs.width || ytest < 0 || ytest > this.cvs.height) {
-      this.drawPos = {
-        x: this.position.x,
-        y: this.position.y
-      };
-    };
-
     this.drawPos = {
       x: this.position.x + this.pushDir.x * this.length * amt,
       y: this.position.y + this.pushDir.y * this.length * amt
+    };
+
+    if (xtest < 0) {
+      this.drawPos.x = 0;
+    } else if (xtest > this.cvs.width) {
+      this.drawPos.x = this.cvs.width;
+    }
+
+    if (ytest < 0) {
+      this.drawPos.y = 0;
+    } else if (ytest > this.cvs.height) {
+      this.drawPos.y = this.cvs.height;
     };
   };
 
@@ -73,6 +78,7 @@ module.exports = Branch;
 'use strict';
 
 var Tree = require('./tree.js');
+var Leaf = require('./leaf.js');
 var perlin = require('perlin-noise');
 
 var cvs = document.querySelector('canvas');
@@ -81,39 +87,20 @@ var ctx = cvs.getContext('2d');
 cvs.width = cvs.clientWidth;
 cvs.height = cvs.clientHeight;
 
-var tree = void 0;
-var amount = 100;
+// configurables
+var numLeaf = 1000;
 var maxDist = 100;
 var minDist = 10;
-var numLeaf = 1000;
 var noiseSplit = 16;
 
+var average = 0;
+var trees = [];
+var leaves = [];
+var perlinArray = [];
 var xvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
 var yvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
-var perlinArray = [];
 
-for (var x = 0; x < noiseSplit; x++) {
-  perlinArray[x] = [];
-  for (var y = 0; y < noiseSplit; y++) {
-    perlinArray[x][y] = { x: (xvalues[x] - 0.5) * 2, y: (yvalues[y] - 0.5) * 2 };
-  }
-}
-
-document.addEventListener("keydown", function (e) {
-  console.log(e.keycode);
-  if (e.keyCode === 32) {
-    setup();
-  }
-});
-
-cvs.addEventListener("click", function (e) {
-  if (amount === 0) {
-    amount = 100;
-  } else {
-    amount = 0;
-  }
-});
-
+// audio variables
 var actx = void 0,
     req = void 0,
     analyser = void 0,
@@ -121,79 +108,115 @@ var actx = void 0,
     sourceNode = void 0,
     bufferLength = void 0,
     frequencyData = void 0;
-var average = 0;
 
 var setup = function setup() {
+  function setupAudioNodes() {
+    jscriptNode = actx.createScriptProcessor(2048, 1, 1);
+    jscriptNode.connect(actx.destination);
+
+    analyser = actx.createAnalyser();
+    analyser.smoothingTimeConstant = 0.3;
+    analyser.fftSize = 1024;
+
+    jscriptNode.onaudioprocess = function () {
+      var array = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(array);
+      average = getAverageVolume(array);
+    };
+
+    sourceNode = actx.createBufferSource();
+    sourceNode.connect(analyser);
+    analyser.connect(jscriptNode);
+    sourceNode.connect(actx.destination);
+  };
+
+  function soundLoad() {
+    req = new XMLHttpRequest();
+
+    req.open('GET', './wind.mp3');
+    req.responseType = 'arraybuffer';
+
+    req.onload = function () {
+      actx.decodeAudioData(req.response, function (buffer) {
+        sourceNode.buffer = buffer;
+        sourceNode.start(0);
+        sourceNode.loop = true;
+      });
+    };
+
+    req.send();
+  };
+
+  function getAverageVolume(array) {
+    var values = 0;
+    var naverage = void 0;
+    var length = array.length;
+
+    for (var i = 0; i < length; i++) {
+      values += array[i];
+    };
+
+    naverage = values / length;
+    return naverage;
+  };
+
+  // populating leaves
+  for (var i = 0; i < numLeaf; i++) {
+    leaves.push(new Leaf(cvs, ctx));
+  };
+
+  // perlin wind setup
+  for (var x = 0; x < noiseSplit; x++) {
+    perlinArray[x] = [];
+    for (var y = 0; y < noiseSplit; y++) {
+      perlinArray[x][y] = { x: (xvalues[x] - 0.5) * 2, y: (yvalues[y] - 0.5) * 2 };
+    }
+  }
+
   actx = new (window.AudioContext || window.webkitAudioContext)();
   setupAudioNodes();
   soundLoad();
-  tree = new Tree(numLeaf, cvs, ctx, minDist, maxDist, noiseSplit, perlinArray);
+
+  // looks a little gross, but just placing the trees at each corner of the canvas
+  var start = void 0,
+      dir = void 0;
+  var rand = Math.random() * Math.PI * 2;
+  start = { x: cvs.width / 2, y: cvs.height / 2 };
+  dir = { x: Math.cos(rand), y: Math.sin(rand) };
+
+  trees.push(new Tree(start, dir, leaves, cvs, ctx, minDist, maxDist, noiseSplit, perlinArray));
+
   draw();
-};
-
-function setupAudioNodes() {
-  jscriptNode = actx.createScriptProcessor(2048, 1, 1);
-  jscriptNode.connect(actx.destination);
-
-  analyser = actx.createAnalyser();
-  analyser.smoothingTimeConstant = 0.3;
-  analyser.fftSize = 1024;
-
-  jscriptNode.onaudioprocess = function () {
-    var array = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(array);
-    average = getAverageVolume(array);
-  };
-
-  sourceNode = actx.createBufferSource();
-  sourceNode.connect(analyser);
-  analyser.connect(jscriptNode);
-  sourceNode.connect(actx.destination);
-};
-
-function soundLoad() {
-  req = new XMLHttpRequest();
-
-  req.open('GET', './wind.mp3');
-  req.responseType = 'arraybuffer';
-
-  req.onload = function () {
-    actx.decodeAudioData(req.response, function (buffer) {
-      sourceNode.buffer = buffer;
-      sourceNode.start(0);
-    });
-  };
-
-  req.send();
-};
-
-function getAverageVolume(array) {
-  var values = 0;
-  var naverage = void 0;
-  var length = array.length;
-
-  for (var i = 0; i < length; i++) {
-    values += array[i];
-  };
-
-  naverage = values / length;
-  return naverage;
 };
 
 var draw = function draw() {
   ctx.fillStyle = "black";
   ctx.fillRect(0, 0, cvs.width, cvs.height);
 
-  console.log(average);
-  tree.movewind(average);
-  tree.show();
-  tree.grow();
+  for (var i = 0; i < trees.length; i++) {
+    trees[i].grow();
+  };
+  for (var _i = 0; _i < trees.length; _i++) {
+    trees[_i].movewind((average - 50) * 10);
+  };
+  for (var _i2 = 0; _i2 < trees.length; _i2++) {
+    trees[_i2].show();
+  };
+
   requestAnimationFrame(draw);
 };
 
+// setup controls
+document.addEventListener("keydown", function (e) {
+  trees = [];
+  if (e.keyCode === 32) {
+    setup();
+  }
+});
+
 setup();
 
-},{"./tree.js":4,"perlin-noise":5}],3:[function(require,module,exports){
+},{"./leaf.js":3,"./tree.js":4,"perlin-noise":5}],3:[function(require,module,exports){
 "use strict";
 
 var Leaf = function Leaf(cvs, ctx) {
@@ -216,38 +239,37 @@ module.exports = Leaf;
 'use strict';
 
 var Victor = require('victor');
-var Leaf = require('./leaf.js');
 var Branch = require('./branch.js');
 
-var Tree = function Tree(num, cvs, ctx, min, max, split, perlin) {
-  this.num = num;
+var Tree = function Tree(start, dir, leaves, cvs, ctx, min, max, split, perlin) {
+  this.branches = [];
+  this.leaves = leaves;
 
   this.cvs = cvs;
   this.ctx = ctx;
 
+  // Thresholds for leaf distance scans; active scans only occur between these two values
   this.min = min;
   this.max = max;
-
-  this.leaves = [];
-  this.branches = [];
 
   this.split = split;
   this.perlin = perlin;
 
-  for (var i = 0; i < this.num; i++) {
-    this.leaves.push(new Leaf(this.cvs, this.ctx));
-  };
-
-  this.position = { x: this.cvs.width * 0.5, y: this.cvs.height };
-  this.direction = { x: 0, y: -1 };
+  // root refers to the first branch to start the process
+  this.position = start;
+  this.direction = dir;
   this.root = new Branch(null, this.position, this.direction, this.cvs, this.ctx, 1, this.split, this.perlin);
   this.branches.push(this.root);
+
+  // cycling end of current branch
   this.current = this.root;
+
+  // status boolean, which describes the branch finding a suitable leaf to colonize
   this.found = false;
 
   while (!this.found) {
-    for (var _i = 0; _i < this.leaves.length; _i++) {
-      var d = new Victor(this.current.position.x, this.current.position.y).distance(new Victor(this.leaves[_i].position.x, this.leaves[_i].position.y));
+    for (var i = 0; i < this.leaves.length; i++) {
+      var d = new Victor(this.current.position.x, this.current.position.y).distance(new Victor(this.leaves[i].position.x, this.leaves[i].position.y));
       if (d < max) {
         this.found = true;
       }
@@ -260,11 +282,18 @@ var Tree = function Tree(num, cvs, ctx, min, max, split, perlin) {
     };
   };
 
+  this.movewind = function (amt) {
+    for (var _i = 0; _i < this.branches.length; _i++) {
+      var total = this.branches[_i].num / this.branches.length * amt;
+      this.branches[_i].wind(total);
+    };
+  };
+
   this.grow = function () {
     for (var _i2 = 0; _i2 < this.leaves.length; _i2++) {
       var leaf = this.leaves[_i2];
       var closestBranch = null;
-      var record = 100000;
+      var record = 100000; // just serving as some abritary large number
 
       for (var o = 0; o < this.branches.length; o++) {
         var _branch = this.branches[o];
@@ -308,27 +337,20 @@ var Tree = function Tree(num, cvs, ctx, min, max, split, perlin) {
     };
   };
 
-  this.movewind = function (amt) {
-    for (var _i5 = 0; _i5 < this.branches.length; _i5++) {
-      var total = this.branches[_i5].num / this.branches.length * amt;
-      this.branches[_i5].wind(total);
-    };
-  };
-
   this.show = function () {
-    for (var _i6 = 0; _i6 < this.leaves.length; _i6++) {
-      this.leaves[_i6].show();
+    for (var _i5 = 0; _i5 < this.leaves.length; _i5++) {
+      this.leaves[_i5].show();
     };
 
-    for (var _i7 = 0; _i7 < this.branches.length; _i7++) {
-      this.branches[_i7].show();
+    for (var _i6 = 0; _i6 < this.branches.length; _i6++) {
+      this.branches[_i6].show();
     };
   };
 };
 
 module.exports = Tree;
 
-},{"./branch.js":1,"./leaf.js":3,"victor":6}],5:[function(require,module,exports){
+},{"./branch.js":1,"victor":6}],5:[function(require,module,exports){
 exports.generatePerlinNoise = generatePerlinNoise;
 exports.generateWhiteNoise = generateWhiteNoise;
 

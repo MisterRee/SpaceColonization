@@ -1,31 +1,30 @@
 const Victor = require( 'victor' );
-const Leaf = require( './leaf.js' );
 const Branch = require( './branch.js' );
 
-const Tree = function( num, cvs, ctx, min, max, split, perlin){
-  this.num = num;
+const Tree = function( start, dir, leaves, cvs, ctx, min, max, split, perlin){
+  this.branches = [];
+  this.leaves = leaves;
 
   this.cvs = cvs;
   this.ctx = ctx;
 
+  // Thresholds for leaf distance scans; active scans only occur between these two values
   this.min = min;
   this.max = max;
-
-  this.leaves = [];
-  this.branches = [];
 
   this.split = split;
   this.perlin = perlin;
 
-  for( let i = 0; i < this.num; i++ ){
-    this.leaves.push( new Leaf( this.cvs, this.ctx ));
-  };
-
-  this.position = { x: this.cvs.width * 0.5, y: this.cvs.height };
-  this.direction = { x: 0, y: -1 };
+  // root refers to the first branch to start the process
+  this.position = start;
+  this.direction = dir;
   this.root = new Branch( null, this.position, this.direction, this.cvs, this.ctx, 1, this.split, this.perlin );
   this.branches.push( this.root );
+
+  // cycling end of current branch
   this.current = this.root;
+
+  // status boolean, which describes the branch finding a suitable leaf to colonize
   this.found = false;
 
   while( !this.found ){
@@ -43,11 +42,18 @@ const Tree = function( num, cvs, ctx, min, max, split, perlin){
     };
   };
 
+  this.movewind = function( amt ){
+    for( let i = 0; i < this.branches.length; i++ ){
+      let total = this.branches[ i ].num / this.branches.length * amt;
+      this.branches[ i ].wind( total );
+    };
+  };
+
   this.grow = function(){
     for( let i = 0; i < this.leaves.length; i++ ){
       let leaf = this.leaves[ i ];
       let closestBranch = null;
-      let record = 100000;
+      let record = 100000; // just serving as some abritary large number
 
       for( let o = 0; o < this.branches.length; o++ ){
         let branch = this.branches[ o ];
@@ -90,13 +96,6 @@ const Tree = function( num, cvs, ctx, min, max, split, perlin){
         this.branches.push( branch.next() );
       };
       branch.reset();
-    };
-  };
-
-  this.movewind = function( amt ){
-    for( let i = 0; i < this.branches.length; i++ ){
-      let total = this.branches[ i ].num / this.branches.length * amt;
-      this.branches[ i ].wind( total );
     };
   };
 

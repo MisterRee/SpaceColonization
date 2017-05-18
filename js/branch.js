@@ -33,24 +33,29 @@ function Branch( parent, position, direction, cvs, ctx, num, split, perlin ){
     let xsplit = Math.abs( Math.floor( this.position.x / this.cvs.width * ( this.split - 1 ) ) );
     let ysplit = Math.abs( Math.floor( this.position.y / this.cvs.height * ( this.split - 1 ) ) );
     this.gridslot = { x: xsplit, y: ysplit };
-    
+
     this.pushDir = new Victor( this.perlin[ this.gridslot.x ][ this.gridslot.y ].x,
                                this.perlin[ this.gridslot.x ][ this.gridslot.y ].y ).normalize();
 
     let xtest = this.position.x + this.pushDir.x * this.length * amt;
     let ytest = this.position.y + this.pushDir.y * this.length * amt
 
-    if( xtest < 0 || xtest > this.cvs.width || ytest < 0 || ytest > this.cvs.height ){
-      this.drawPos = {
-        x: this.position.x,
-        y: this.position.y
-      };
-    };
-
     this.drawPos = {
       x: this.position.x + this.pushDir.x * this.length * amt,
       y: this.position.y + this.pushDir.y * this.length * amt,
     }
+
+    if( xtest < 0 ){
+      this.drawPos.x = 0;
+    } else if( xtest > this.cvs.width ){
+      this.drawPos.x = this.cvs.width;
+    }
+
+    if( ytest < 0 ){
+      this.drawPos.y = 0;
+    } else if( ytest > this.cvs.height ){
+      this.drawPos.y = this.cvs.height;
+    };
   };
 
   this.show = function(){
