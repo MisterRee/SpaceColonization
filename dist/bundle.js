@@ -162,8 +162,8 @@ cvs.width = cvs.clientWidth;
 cvs.height = cvs.clientHeight;
 
 // configurables
-var numLeaf = 1000;
-var numFlows = 250;
+var numLeaf = 500;
+var numFlows = 125;
 var maxDist = 100;
 var minDist = 10;
 var noiseSplit = 16;
@@ -296,6 +296,10 @@ var draw = function draw() {
 // setup controls
 document.addEventListener("keydown", function (e) {
   trees = [];
+  flows = [];
+  xvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
+  yvalues = perlin.generatePerlinNoise(noiseSplit, noiseSplit);
+
   if (e.keyCode === 32) {
     setup();
   }
