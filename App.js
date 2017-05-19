@@ -11,4 +11,4 @@ App.get( '/', function( req, res ){
 
 server.listen( 3000 );
 
-// This app was used solely for local development purposes to avoid CORS errors
+// This was used solely for local development purposes to avoid CORS errors
