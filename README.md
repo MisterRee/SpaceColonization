@@ -5,7 +5,7 @@
 
 A basic representation of a programatically generated tree which sways to an audio sample of wind. The direction of the branches determined by a [Vector Field](https://en.wikipedia.org/wiki/Vector_field) randomly generated using perlin noise. To further emphasize the existance of this vector field which is not directly displayed, randomly spawning "flows" will travel using the vector fields. These flows were meant to represent falling leaves in the aesthetic sense of the project.
 
-The tree is generated using the space colonization algorithm, which generates "leaves" across the accessible surface area before the algorithm begins. The algorithm then will detect the closest leaf within a set minimum and maximum distance domain, and will use the leaf's position as a vector force applied to a previous iteration's direction vector to generate the next "branch of the tree. With each successful leaf detected iteration, the respective leaf is removed so that the algorithm will eventually end.
+The tree is generated using the [Space Colonization Algorithm](http://algorithmicbotany.org/papers/colonization.egwnp2007.large.pdf), which generates "leaves" across the accessible surface area before the algorithm begins. The algorithm then will detect the closest leaf within a set minimum and maximum distance domain, and will use the leaf's position as a vector force applied to a previous iteration's direction vector to generate the next "branch of the tree. With each successful leaf detected iteration, the respective leaf is removed so that the algorithm will eventually end.
 
 The tree begins in the center of the canvas screen, with a randomly generated direction.
 
