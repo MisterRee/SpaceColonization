@@ -1,31 +1,39 @@
 var gulp = require( 'gulp' ),
-    browserify = require( 'browserify' ),
-    babelify = require( 'babelify' ),
-    source = require( 'vinyl-source-stream' ),
-    buffer = require( 'vinyl-buffer' ),
-    babel = require( 'gulp-babel' ),
     notify = require( 'gulp-notify' ),
-    watchify = require( 'watchify' );
+    rename = require( 'gulp-rename' ),
+    uglify = require( 'gulp-uglify' ),
 
-gulp.task( 'js', function(){
-  browserify({
-    entries: './js/index.js'
-  })
-    .transform( babelify, { presets: [ 'es2015'] } )
-    .require( './js/index.js', { entry: true } )
+    babel = require( 'babelify' ),
+    browserify = require( 'browserify' ),
+    del = require( 'del' ),
+    buffer = require( 'vinyl-buffer' ),
+    source = require( 'vinyl-source-stream' ),
+
+    runSequence = require( 'run-sequence' );
+
+gulp.task( 'clean', function(){
+  return del( './dist/bundle.min.js' );
+});
+
+gulp.task( 'build', function(){
+  return browserify( './js/main.js' )
+    .transform( "babelify", { presets: [ "env" ] } )
     .bundle()
-    .pipe( source( 'bundle.js' ) )
+    .pipe( source( 'main.js' ) )
+    .pipe( buffer() )
+    .pipe( uglify() )
+    .pipe( rename( 'bundle.min.js' ) )
     .pipe( gulp.dest( './dist' ) )
-    .pipe( notify({
-      message: 'Build Complete',
-      onLast: true
-    }) )
+});
+
+gulp.task( 'route', function( done ){
+  runSequence( 'clean', 'build', function(){
+    done();
+  });
 });
 
 gulp.task( 'watch', function(){
-  gulp.watch( './js/**.js', function(){
-    gulp.run( 'js' );
-  });
+  gulp.watch( [ './js/**.js' ], [ 'route' ] );
 });
 
 gulp.task( 'default', ['watch'] );
