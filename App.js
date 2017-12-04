@@ -1,5 +1,6 @@
 const express = require( 'express' );
 const App = express();
+const fs = require( 'fs' );
 
 App.use( express.static( __dirname + '/dist' ) );
 
