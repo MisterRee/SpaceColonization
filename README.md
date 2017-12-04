@@ -1,7 +1,7 @@
 # SpaceColonization
 
 #### --Loud Volume Warning--
-[Demo](https://people.rit.edu/dxl1720/ComputationalAesthetics/SpaceColony/)
+[Demo](https://spacecolonization.herokuapp.com/)
 
 A basic representation of a programatically generated tree which sways to an audio sample of wind. The direction of the branches determined by a [Vector Field](https://en.wikipedia.org/wiki/Vector_field) randomly generated using perlin noise. To further emphasize the existance of this vector field which is not directly displayed, randomly spawning "flows" will travel using the vector fields. These flows were meant to represent falling leaves in the aesthetic sense of the project.
 
